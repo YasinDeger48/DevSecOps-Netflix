@@ -3,7 +3,7 @@ name: DevSecOps-Netflix Pipeline
 on:
   push:
     branches:
-      - master
+      - main
 
 jobs:
   build:
