@@ -1,0 +1,84 @@
+name: DevSecOps-Netflix Pipeline
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Clean up previous workspace
+      run: sudo rm -rf *
+
+    - name: Checkout from GitHub
+      uses: actions/checkout@v2
+      with:
+        repository: YasinDeger48/DevSecOps-Netflix
+        ref: master
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v2
+      with:
+        java-version: '17'
+
+    - name: Set up Node.js 18
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: SonarQube Analysis
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_SCANNER_HOME: ${{ secrets.SONAR_SCANNER_HOME }}
+      run: |
+        $SONAR_SCANNER_HOME/bin/sonar-scanner \
+        -Dsonar.projectName=Netflix \
+        -Dsonar.projectKey=Netflix
+
+    - name: Wait for SonarQube Quality Gate
+      id: sonar
+      uses: sonarsource/sonarcloud-github-action@master
+      with:
+        projectBaseDir: .
+        args: -Dsonar.qualitygate.wait=true
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: TRIVY FS SCAN
+      run: trivy fs . > trivyfs.txt
+
+    - name: Clean up old Docker images
+      run: docker image prune -a -f
+
+    - name: Docker Build and Push
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        TMDB_V3_API_KEY: ${{ secrets.TMDB_V3_API_KEY }}
+      run: |
+        echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin
+        docker build --build-arg TMDB_V3_API_KEY=$TMDB_V3_API_KEY -t yasindeger48/${{ github.event.repository.name }}:v${{ github.run_number }} .
+        docker build --build-arg TMDB_V3_API_KEY=$TMDB_V3_API_KEY -t yasindeger48/${{ github.event.repository.name }}:latest .
+        docker push yasindeger48/${{ github.event.repository.name }}:v${{ github.run_number }}
+        docker push yasindeger48/${{ github.event.repository.name }}:latest
+
+    - name: TRIVY Image Scan
+      run: trivy image yasindeger48/${{ github.event.repository.name }}:latest > trivyimage.txt
+
+    - name: Apply Kubernetes Deployment
+      uses: appleboy/k8s-action@v0.0.4
+      with:
+        kubeconfig: ${{ secrets.KUBECONFIG }}
+        manifest: Kubernetes/deployment.yml
+
+    - name: Apply Kubernetes Service
+      uses: appleboy/k8s-action@v0.0.4
+      with:
+        kubeconfig: ${{ secrets.KUBECONFIG }}
+        manifest: Kubernetes/service.yml
