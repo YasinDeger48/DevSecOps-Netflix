@@ -7,7 +7,7 @@ This project is developed using DevSecOps approaches to run a demo Netflix appli
 
 <img src="./public/assets/netflixScreen.png" alt="Logo" width="400" height="200">
 
-<img src="./public/assets/devops.png" alt="Logo" width="400" height="200">
+<img src="./public/assets/devops.png" alt="Logo" width="550" height="400">
 
 ## Features
 - **Deployment with Kubernetes:** The application is configured to run on Kubernetes.
